@@ -1,0 +1,13 @@
+version: 0.1
+phases:
+  pre_build:
+    commands:
+      - npm install --production
+  build:
+    commands:
+      - node install.js
+
+artifacts:
+  files:
+    - git2s3.zip
+  discard-paths: no

@@ -2,3 +2,6 @@ node_modules/
 bower_components/
 .idea/
 npm-debug.log
+.tags1
+git2s3.zip
+build/

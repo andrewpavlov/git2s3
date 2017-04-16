@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "archiver": "^1.3.0",
-    "nodegit": "^0.18.0"
+    "nodegit": "^0.18.0",
+    "js.shared": "https://github.com/andrewpavlov/js.shared.git"
   }
 }
