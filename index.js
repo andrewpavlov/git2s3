@@ -45,15 +45,19 @@ function lambdaGetOpts(data, params) {
     let ref =
         utils.get(data, 'ref') // github, gitlab
         ||
-        utils.get(data, 'push.changes.new.links.self'); // bitbucket
-    let branch = ref.split('/')[-1];
+        utils.get(data, 'push.changes.0.new.links.html.href'); // bitbucket
+
+    let branch = ref.split('/');
+    branch = branch[branch.length - 1];
     // TODO: if not in list - skip
+    // let branches = utils.get(params, 'Branch')
+    repoFullName = repoName + '-' + branch;
 
     return {
         repo: {
             url: remoteUrl,
             name: repoName,
-            branch: utils.get(params, 'Branch')
+            branch: branch
         },
         awsOptions: {
             region: process.env.AWS_REGION ? process.env.AWS_REGION : 'us-east-1'
@@ -64,7 +68,7 @@ function lambdaGetOpts(data, params) {
             PublicKey: params['PublicSSHKey']
         },
         output: {
-            name: repoName,
+            name: repoFullName,
             Bucket: params['OutputBucketName'],
             files: utils.get(params, 'OutputFiles')
         }

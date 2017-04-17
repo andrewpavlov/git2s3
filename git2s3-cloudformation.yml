@@ -270,6 +270,44 @@ Resources:
       Code:
         S3Bucket: !Ref Git2S3Bucket
         S3Key: git2s3.zip
+  Git2S3ApiGateLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.handler
+      MemorySize: '128'
+      Role: !GetAtt
+        - Git2S3Role
+        - Arn
+      Runtime: nodejs4.3
+      Timeout: '300'
+      Code:
+        ZipFile: !Join
+          - ""
+          - - "var AWS = require('aws-sdk');"
+            - "exports.handler = (event, context, callback) => {"
+            - "    var lambda = new AWS.Lambda();"
+            - "    var args = JSON.stringify({"
+            - "        body: event.body,"
+            - "        stageVariables: event.stageVariables"
+            - "    });"
+            - "    var params = {"
+            - "        FunctionName: '"
+            - !GetAtt
+              - Git2S3Lambda
+              - Arn
+            - "',"
+            - "        InvokeArgs: args"
+            - "    };"
+            - "    lambda.invokeAsync(params, function(err, data) {"
+            - "        if (err) {"
+            - "            console.log(err, err.stack);"
+            - "        }"
+            - "    });"
+            - "    callback(null, {"
+            - "        statusCode: 200,"
+            - "        body: ''"
+            - "    });"
+            - "};"
   WebHookRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -297,7 +335,7 @@ Resources:
                   - 'lambda:InvokeFunction'
                 Resource:
                   - !GetAtt
-                    - Git2S3Lambda
+                    - Git2S3ApiGateLambda
                     - Arn
   WebHookApi:
     Type: 'AWS::ApiGateway::RestApi'
@@ -328,7 +366,7 @@ Resources:
                     - !Ref 'AWS::Region'
                     - ':lambda:path/2015-03-31/functions/'
                     - !GetAtt
-                      - Git2S3Lambda
+                      - Git2S3ApiGateLambda
                       - Arn
                     - /invocations
                 passthroughBehavior: when_no_match

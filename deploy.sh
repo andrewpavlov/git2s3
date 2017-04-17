@@ -54,8 +54,8 @@ if [ -z "$stackname" ]; then
     stackname=${stackname:-git2s3-$random-cf}
 fi
 if [ -z "$profile" ]; then
-    defprofile=""
-    read -p "AWS Profile: " profile
+    defprofile="default"
+    read -p "AWS Profile [$defprofile]: " profile
     profile=${profile:-$defprofile}
 fi
 if [ -z "$region" ]; then

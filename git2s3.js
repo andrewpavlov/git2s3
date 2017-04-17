@@ -16,6 +16,10 @@ let opts = {
     }
 };
 
+// for some reasons instead of / we have in arguments \\
+// so, fix this
+opts.repo.url = opts.repo.url.replace(/\\/g, '/');
+
 aws.config(opts.awsOptions);
 
 let stackName = argv['stack-name'];
