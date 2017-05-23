@@ -9,8 +9,12 @@ do
 key="$1"
 
 case $key in
-    -b|--bucket-name)
-    bucketname="$2"
+    -sb|--sources-bucket)
+    sourcesbucket="$2"
+    shift # past argument
+    ;;
+    -b|--branches)
+    branches="$2"
     shift # past argument
     ;;
     -n|--stack-name)
@@ -65,6 +69,7 @@ if [ -z "$region" ]; then
 fi
 
 aws_options=""
+build_stackname="git2s3-codebuild"
 
 if [ $profile ]; then
     aws_options="$aws_options --profile $profile"
@@ -76,15 +81,15 @@ fi;
 if [ $clean ]; then
     set +e #ignore all errors
 
-    lambdabucket=`aws cloudformation describe-stacks \
+    sourcesbucket=`aws cloudformation describe-stacks \
         --stack-name $stackname \
         $aws_options \
         --query "Stacks[0].Outputs[?OutputKey =='OutputBucketName'].[OutputValue]" \
         --output text`
 
     echo -e
-    echo "-- Remove bucket"
-    cmd="aws s3 rb s3://$lambdabucket $aws_options --force"
+    echo "-- Remove bucket with git sources"
+    cmd="aws s3 rb s3://$sourcesbucket $aws_options --force"
     $cmd
     echo "done"
 
@@ -120,9 +125,13 @@ fi;
 
 ## Variables required for creation
 
-if [ -z "$bucketname" ]; then
-    read -p "Lambda bucket [git2s3-$random-content]: " bucketname
-    bucketname=${bucketname:-git2s3-$random-content}
+if [ -z "$sourcesbucket" ]; then
+    read -p "Bucket for sources [auto generated]: " sourcesbucket
+    branches=${sourcesbucket:-}
+fi
+if [ -z "$branches" ]; then
+    read -p "Branches [*]: " branches
+    branches=${branches:-}
 fi
 if [ -z "$allowedips" ]; then
     read -p "Allowed IPs [0.0.0.0/0]: " allowedips
@@ -133,44 +142,68 @@ if [ -z "$apisecret" ]; then
     apisecret=${apisecret:-$apisecretdef}
 fi
 
+################################
 ## Run commands
+################################
 
+## Build git2s3 lambda
 echo -e
-echo "-- Installing packages"
-cmd="npm install --production"
+echo "-- Creating build stack"
+cmd="aws cloudformation create-stack \
+ --stack-name $build_stackname \
+ --template-body file://cf/build.yml \
+ --capabilities CAPABILITY_NAMED_IAM \
+ $aws_options"
 echo $cmd
 $cmd
 echo "done"
 
 echo -e
-echo "-- Build Lambda"
-cmd="node install.js"
+echo "-- Waiting for stack create complete"
+cmd="aws cloudformation wait stack-create-complete \
+ --stack-name $build_stackname \
+ $aws_options"
 echo $cmd
 $cmd
 echo "done"
 
 echo -e
-echo "-- Creating bucket"
-cmd="aws s3 mb s3://$bucketname $aws_options"
-echo $cmd
-$cmd
-echo "done"
+echo "-- Running build"
+buildid=`aws codebuild start-build \
+ --project-name git2s3-codebuild \
+ $aws_options \
+ --query "build.id" --output text`
+echo "buildid: $buildid"
 
 echo -e
-echo "-- Uploading lambda"
-cmd="aws s3 cp git2s3.zip s3://$bucketname $aws_options"
-echo $cmd
-$cmd
+buildcomplete=false
+while [[ $buildcomplete != "True" ]]; do
+  sleep 3
+  echo -n '.'
+  buildcomplete=`aws codebuild batch-get-builds \
+   --ids $buildid \
+   $aws_options \
+   --query "builds[0].buildComplete" --output text`
+done
 echo "done"
+
+git2s3bucket=`aws cloudformation describe-stacks \
+    --stack-name $build_stackname \
+    $aws_options \
+    --query "Stacks[0].Outputs[?OutputKey =='OutputBucketName'].[OutputValue]" \
+    --output text`
+echo "Git2s3 CodeBuild output bucket $git2s3bucket"
 
 echo -e
 echo "-- Creating cloudformation stack"
 cmd="aws cloudformation create-stack \
  --stack-name $stackname \
- --template-body file://git2s3-cloudformation.yml \
+ --template-body file://cf/git2s3-cloudformation.yml \
  --capabilities CAPABILITY_NAMED_IAM \
  --parameters \
- ParameterKey=Git2S3Bucket,ParameterValue=$bucketname \
+ ParameterKey=Git2S3Bucket,ParameterValue=$git2s3bucket \
+ ParameterKey=Branch,ParameterValue=$branches \
+ ParameterKey=OutputBucketName,ParameterValue=$sourcesbucket \
  ParameterKey=AllowedIps,ParameterValue=$allowedips \
  ParameterKey=ApiSecret,ParameterValue=$apisecret \
  $aws_options"
@@ -181,6 +214,25 @@ cmd="aws cloudformation wait stack-create-complete \
  --stack-name $stackname \
  $aws_options"
 echo $cmd
+$cmd
+
+############### clean
+echo -e
+echo "-- Remove git2s3 build output bucket"
+cmd="aws s3 rm s3://$git2s3bucket --recursive $aws_options"
+$cmd
+echo "done"
+
+echo -e
+echo "-- Deleting build stack"
+cmd="aws cloudformation delete-stack \
+ --stack-name $build_stackname \
+ $aws_options"
+$cmd
+
+cmd="aws cloudformation wait stack-delete-complete \
+ --stack-name $build_stackname \
+ $aws_options"
 $cmd
 
 echo -e

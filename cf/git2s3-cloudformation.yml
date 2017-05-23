@@ -269,7 +269,7 @@ Resources:
       Timeout: '300'
       Code:
         S3Bucket: !Ref Git2S3Bucket
-        S3Key: git2s3.zip
+        S3Key: git2s3/git2s3.zip
   Git2S3ApiGateLambda:
     Type: AWS::Lambda::Function
     Properties:

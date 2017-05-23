@@ -10,12 +10,27 @@ exports.handler = (event, context, callback) => {
         let opts = lambdaGetOpts(body, params);
         console.log('Options', opts);
 
-        require('./lib/index')(opts, () => {
+        let branches = utils.get(params, 'Branch', '');
+        let skip = false;
+        if (!utils.empty(branches)) {
+            branches = branches.split(/[ \,\;]/);
+            let branch = opts.repo.branch;
+            skip = branches.indexOf(branch) === -1;
+        }
+
+        if (skip) {
             callback(null, {
                 statusCode: 200,
                 body: ''
             });
-        });
+        } else {
+            require('./lib/index')(opts, () => {
+                callback(null, {
+                    statusCode: 200,
+                    body: ''
+                });
+            });
+        }
     });
 };
 
@@ -49,8 +64,6 @@ function lambdaGetOpts(data, params) {
 
     let branch = ref.split('/');
     branch = branch[branch.length - 1];
-    // TODO: if not in list - skip
-    // let branches = utils.get(params, 'Branch')
     repoFullName = repoName + '-' + branch;
 
     return {
