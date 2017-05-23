@@ -14,7 +14,8 @@ Command line
 
 Arguments:
 
-    -b, --bucket            Lamda deployment bucket name.
+    -sb, --sources-bucket   Bucket with sources
+    -b, --branches          Branches you want to follow
     -n, --stack-name        Cloud Formation Stack name
     -ip, --allowed-ips      Allowed IPs
     -s, --secret            Secret phrase
@@ -24,11 +25,11 @@ Arguments:
 
 Example:
 
-    ./deploy.sh -b git2s3.content -n git2s3-cf -ip 0.0.0.0/0 -s qwerty123 -p retec -r us-east-1
+    ./deploy.sh -n git2s3-cf -ip 0.0.0.0/0 -s qwerty123 -p retec -r us-east-1
     
 Clean
 
-    ./deploy.sh --clean -b git2s3.content -n git2s3-cf -p retec -r us-east-1
+    ./deploy.sh --clean -n git2s3-cf -p retec -r us-east-1
 
 ## License
 
