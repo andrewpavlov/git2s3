@@ -50,8 +50,10 @@ done
 ## Define
 
 # generating random suffix
-random=$(cat /dev/urandom | tr -dc "a-z0-9" | fold -w 8 | head -n 1)
-apisecretdef=$(cat /dev/urandom | tr -dc "a-zA-Z0-9" | fold -w 32 | head -n 1)
+# random=$(cat /dev/urandom | tr -dc "a-z0-9" | fold -w 8 | head -n 1)
+random=$(cat /dev/urandom | env LC_CTYPE=C tr -dc "a-z0-9" | fold -w 8 | head -n 1)
+# apisecretdef=$(cat /dev/urandom | tr -dc "a-zA-Z0-9" | fold -w 32 | head -n 1)
+apisecretdef=$(cat /dev/urandom | env LC_CTYPE=C tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
 
 if [ -z "$stackname" ]; then
     read -p "Cloud Formation stack name [git2s3-$random-cf]: " stackname
@@ -127,7 +129,7 @@ fi;
 
 if [ -z "$sourcesbucket" ]; then
     read -p "Bucket for sources [auto generated]: " sourcesbucket
-    branches=${sourcesbucket:-}
+    sourcesbucket=${sourcesbucket:-}
 fi
 if [ -z "$branches" ]; then
     read -p "Branches [*]: " branches
@@ -147,45 +149,49 @@ fi
 ################################
 
 ## Build git2s3 lambda
-echo -e
-echo "-- Creating build stack"
-cmd="aws cloudformation create-stack \
- --stack-name $build_stackname \
- --template-body file://cf/build.yml \
- --capabilities CAPABILITY_NAMED_IAM \
- $aws_options"
-echo $cmd
-$cmd
-echo "done"
+# TODO: // stackexist function
+build_stack_exists="true"
+if [ -z "$build_stack_exists" ]; then
+    echo -e
+    echo "-- Creating build stack"
+    cmd="aws cloudformation create-stack \
+    --stack-name $build_stackname \
+    --template-body file://cf/build.yml \
+    --capabilities CAPABILITY_NAMED_IAM \
+    $aws_options"
+    echo $cmd
+    $cmd
+    echo "done"
 
-echo -e
-echo "-- Waiting for stack create complete"
-cmd="aws cloudformation wait stack-create-complete \
- --stack-name $build_stackname \
- $aws_options"
-echo $cmd
-$cmd
-echo "done"
+    echo -e
+    echo "-- Waiting for stack create complete"
+    cmd="aws cloudformation wait stack-create-complete \
+    --stack-name $build_stackname \
+    $aws_options"
+    echo $cmd
+    $cmd
+    echo "done"
 
-echo -e
-echo "-- Running build"
-buildid=`aws codebuild start-build \
- --project-name git2s3-codebuild \
- $aws_options \
- --query "build.id" --output text`
-echo "buildid: $buildid"
+    echo -e
+    echo "-- Running build"
+    buildid=`aws codebuild start-build \
+    --project-name git2s3-codebuild \
+    $aws_options \
+    --query "build.id" --output text`
+    echo "buildid: $buildid"
 
-echo -e
-buildcomplete=false
-while [[ $buildcomplete != "True" ]]; do
-  sleep 3
-  echo -n '.'
-  buildcomplete=`aws codebuild batch-get-builds \
-   --ids $buildid \
-   $aws_options \
-   --query "builds[0].buildComplete" --output text`
-done
-echo "done"
+    echo -e
+    buildcomplete=false
+    while [[ $buildcomplete != "True" ]]; do
+    sleep 3
+    echo -n '.'
+    buildcomplete=`aws codebuild batch-get-builds \
+    --ids $buildid \
+    $aws_options \
+    --query "builds[0].buildComplete" --output text`
+    done
+    echo "done"
+fi
 
 git2s3bucket=`aws cloudformation describe-stacks \
     --stack-name $build_stackname \

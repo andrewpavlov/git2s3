@@ -3,11 +3,11 @@ Description: Git 2 S3
 Mappings:
   LambdaBuckets:
     us-east-1:
-      Name: git-to-codepipeline-us-east-1
+      Name: git-to-codepipeline-prod-us-east-1
     us-west-2:
-      Name: git-to-codepipeline-us-west-2
+      Name: git-to-codepipeline-prod-us-west-2
     eu-west-1:
-      Name: git-to-codepipeline-eu-west-1
+      Name: git-to-codepipeline-prod-eu-west-1
 Conditions:
   UseAllowedIps: !Not
     - !Equals
@@ -66,8 +66,7 @@ Parameters:
 Resources:
   KeyBucket:
     Type: 'AWS::S3::Bucket'
-    Properties:
-      Tags: []
+    DeletionPolicy: Delete
   OutputBucket:
     Type: 'AWS::S3::Bucket'
     Properties:
@@ -77,7 +76,6 @@ Resources:
         - !Ref 'AWS::NoValue'
       VersioningConfiguration:
         Status: Enabled
-      Tags: []
   KMSKey:
     Type: 'AWS::KMS::Key'
     Properties:
@@ -400,8 +398,12 @@ Outputs:
         - .amazonaws.com/
         - !Ref WebHookApiProdStage
         - /gitpull
+    Export:
+      Name: !Sub ${AWS::StackName}-webhook
   OutputBucketName:
     Value: !Ref OutputBucket
+    Export:
+      Name: !Sub ${AWS::StackName}-output-bucket
   KeyBucketName:
     Value: !Ref KeyBucket
   AllowedIps:

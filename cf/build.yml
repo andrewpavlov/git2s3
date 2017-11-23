@@ -2,7 +2,8 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: git2s3 build system
 Resources:
   OutputBucket:
-      Type: AWS::S3::Bucket
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
   CodeBuildRole:
     Type: AWS::IAM::Role
     Properties:
