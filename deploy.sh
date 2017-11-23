@@ -1,5 +1,73 @@
 #!/bin/bash
 
+######################################
+## functions
+function runcmd {
+    local aws_options="--region ${region} --profile ${profile}"
+    local cmd=$1" ${aws_options}"
+    
+    if [ $demo ]; then
+        echo $cmd
+    else
+        $cmd
+    fi
+}
+
+function stack_status {
+    local stackname=$1
+
+    local status=`aws cloudformation describe-stacks \
+    --stack-name ${stackname} \
+    ${aws_options} \
+    | sed -n 's/[^\0]*StackStatus": "\([^"]*\)[^\0]*/\1/p'`
+    echo $status
+}
+
+function create_stack {
+    local stackname=$1
+    local template=$2
+    local extra=$3
+    local capabilities=$4
+    local shouldwait=$5
+    local cmd="aws cloudformation create-stack \
+        --stack-name ${stackname} \
+        --template-body ${template} \
+        ${extra}"
+    if [ $capabilities ]; then
+        cmd=$cmd" --capabilities CAPABILITY_NAMED_IAM"
+    fi
+    
+    runcmd "${cmd}"
+    if [ $shouldwait ]; then
+        runcmd "aws cloudformation wait stack-create-complete --stack-name ${stackname}"
+    fi
+}
+
+function delete_stack {
+    local stackname=$1
+    local shouldwait=$2
+    local cmd="aws cloudformation delete-stack --stack-name ${stackname}"
+
+    runcmd "${cmd}"
+    if [ $shouldwait ]; then
+        runcmd "aws cloudformation wait stack-delete-complete --stack-name ${stackname}"
+    fi    
+}
+
+function import_value {
+    local stackname=$1
+    local value=$2
+    local aws_options="--region ${region} --profile ${profile}"
+    local ret=`aws cloudformation describe-stacks \
+        --stack-name ${stackname} \
+        --query "Stacks[0].Outputs[?OutputKey =='${value}'].[OutputValue]" \
+        --output text \
+        ${aws_options}`
+    echo $ret
+}
+## functions
+######################################
+
 set -e
 
 ## Check arguments
@@ -39,6 +107,9 @@ case $key in
     ;;
     --clean)
     clean=yes
+    ;;
+    --demo)
+    demo=yes
     ;;
     *)
             # unknown option
@@ -80,27 +151,19 @@ if [ $region ]; then
     aws_options="$aws_options --region $region"
 fi;
 
+######################################
+## clean
 if [ $clean ]; then
     set +e #ignore all errors
 
-    sourcesbucket=`aws cloudformation describe-stacks \
-        --stack-name $stackname \
-        $aws_options \
-        --query "Stacks[0].Outputs[?OutputKey =='OutputBucketName'].[OutputValue]" \
-        --output text`
-
+    sourcesbucket=`import_value $stackname "OutputBucketName"`
     echo -e
     echo "-- Remove bucket with git sources"
     cmd="aws s3 rb s3://$sourcesbucket $aws_options --force"
     $cmd
     echo "done"
 
-    keybucket=`aws cloudformation describe-stacks \
-        --stack-name $stackname \
-        $aws_options \
-        --query "Stacks[0].Outputs[?OutputKey =='KeyBucketName'].[OutputValue]" \
-        --output text`
-
+    keybucket=`import_value $stackname "KeyBucketName"`
     echo -e
     echo "-- Remove key bucket"
     cmd="aws s3 rb s3://$keybucket $aws_options --force"
@@ -109,21 +172,15 @@ if [ $clean ]; then
 
     echo -e
     echo "-- Deleting cloudformation stack"
-    cmd="aws cloudformation delete-stack \
-     --stack-name $stackname \
-     $aws_options"
-    $cmd
-
-    cmd="aws cloudformation wait stack-delete-complete \
-     --stack-name $stackname \
-     $aws_options"
-    $cmd
+    delete_stack $stackname true
 
     echo -e
     echo "All done!"
 
     exit;
 fi;
+## clean
+######################################
 
 ## Variables required for creation
 
@@ -147,29 +204,12 @@ fi
 ################################
 ## Run commands
 ################################
-
 ## Build git2s3 lambda
-# TODO: // stackexist function
-build_stack_exists="true"
+build_stack_exists=`stack_status $build_stackname`
 if [ -z "$build_stack_exists" ]; then
     echo -e
     echo "-- Creating build stack"
-    cmd="aws cloudformation create-stack \
-    --stack-name $build_stackname \
-    --template-body file://cf/build.yml \
-    --capabilities CAPABILITY_NAMED_IAM \
-    $aws_options"
-    echo $cmd
-    $cmd
-    echo "done"
-
-    echo -e
-    echo "-- Waiting for stack create complete"
-    cmd="aws cloudformation wait stack-create-complete \
-    --stack-name $build_stackname \
-    $aws_options"
-    echo $cmd
-    $cmd
+    create_stack $build_stackname "file://cf/build.yml" "" true true
     echo "done"
 
     echo -e
@@ -193,53 +233,30 @@ if [ -z "$build_stack_exists" ]; then
     echo "done"
 fi
 
-git2s3bucket=`aws cloudformation describe-stacks \
-    --stack-name $build_stackname \
-    $aws_options \
-    --query "Stacks[0].Outputs[?OutputKey =='OutputBucketName'].[OutputValue]" \
-    --output text`
-echo "Git2s3 CodeBuild output bucket $git2s3bucket"
+git2s3bucket=`import_value $build_stackname "OutputBucketName"`
+
+############### create git2s3 stack
 
 echo -e
 echo "-- Creating cloudformation stack"
-cmd="aws cloudformation create-stack \
- --stack-name $stackname \
- --template-body file://cf/git2s3-cloudformation.yml \
- --capabilities CAPABILITY_NAMED_IAM \
- --parameters \
+parameters="--parameters \
  ParameterKey=Git2S3Bucket,ParameterValue=$git2s3bucket \
  ParameterKey=Branch,ParameterValue=$branches \
  ParameterKey=OutputBucketName,ParameterValue=$sourcesbucket \
  ParameterKey=AllowedIps,ParameterValue=$allowedips \
  ParameterKey=ApiSecret,ParameterValue=$apisecret \
- $aws_options"
-echo $cmd
-$cmd
-
-cmd="aws cloudformation wait stack-create-complete \
- --stack-name $stackname \
- $aws_options"
-echo $cmd
-$cmd
+"
+create_stack $stackname "file://cf/git2s3-cloudformation.yml" "$parameters" true true
 
 ############### clean
 echo -e
 echo "-- Remove git2s3 build output bucket"
-cmd="aws s3 rm s3://$git2s3bucket --recursive $aws_options"
-$cmd
+runcmd "aws s3 rm s3://${git2s3bucket} --recursive"
 echo "done"
 
 echo -e
 echo "-- Deleting build stack"
-cmd="aws cloudformation delete-stack \
- --stack-name $build_stackname \
- $aws_options"
-$cmd
-
-cmd="aws cloudformation wait stack-delete-complete \
- --stack-name $build_stackname \
- $aws_options"
-$cmd
+delete_stack $build_stackname true
 
 echo -e
 echo "All done!"
@@ -250,10 +267,8 @@ echo "-- Outputs"
 # but for some reasons describe-stacks returns nothing directly after
 # stack-create-complete
 
-cmd="aws cloudformation describe-stacks \
- --stack-name $stackname \
- $aws_options \
- --query \"Stacks[0].Outputs\" \
- --output text"
-echo $cmd
-$cmd
+echo -e
+import_value $stackname "Git2S3WebHookApi"
+echo -e
+import_value $stackname "PublicSSHKey"
+
