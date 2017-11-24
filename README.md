@@ -21,6 +21,7 @@ Arguments:
     -s, --secret            Secret phrase
     -p, --profile           AWS profile
     -r, --region            AWS region
+    -m, --max-memory        Memory limit for lambda (128 by default). Important if sources are huge
     --clean                 Clear deployment (clear AWS resources)
 
 Example:

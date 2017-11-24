@@ -105,6 +105,11 @@ case $key in
     shift # past argument
     shift # past value
     ;;
+    -m|--max-memory)
+    memory="$2"
+    shift # past argument
+    shift # past value
+    ;;
     -r|--region)
     region="$2"
     shift # past argument
@@ -163,20 +168,37 @@ if [ $clean ]; then
     set +e #ignore all errors
 
     sourcesbucket=`import_value $stackname "OutputBucketName"`
-    echo -e
-    echo "-- Remove bucket with git sources"
-    runcmd "aws s3 rb s3://$sourcesbucket $aws_options --force"
-    echo "done"
+    if [ -z "$sourcebucket" ]; then
+        sourcesbucket=`import_value $build_stackname "OutputBucketName"`
+    fi
+    if [ ! -z "$sourcebucket" ]; then
+        echo -e
+        echo "-- Remove bucket with git sources"
+        runcmd "aws s3 rb s3://$sourcesbucket $aws_options --force"
+        echo "done"
+    fi
 
     keybucket=`import_value $stackname "KeyBucketName"`
-    echo -e
-    echo "-- Remove key bucket"
-    runcmd "aws s3 rb s3://$keybucket --force"
-    echo "done"
+    if [ ! -z "$keybucket" ]; then
+        echo -e
+        echo "-- Remove key bucket"
+        runcmd "aws s3 rb s3://$keybucket --force"
+        echo "done"
+    fi
 
-    echo -e
-    echo "-- Deleting cloudformation stack"
-    delete_stack $stackname true
+    stack_exists=`stack_status $stackname`
+    if [ ! -z "$stack_exists" ]; then
+        echo -e
+        echo "-- Deleting cloudformation stack"
+        delete_stack $stackname true
+    fi
+
+    build_stack_exists=`stack_status $build_stackname`
+    if [ ! -z "$build_stack_exists" ]; then
+        echo -e
+        echo "-- Deleting build stack"
+        delete_stack $build_stackname true
+    fi
 
     echo -e
     echo "All done!"
@@ -244,12 +266,16 @@ git2s3bucket=`import_value $build_stackname "OutputBucketName"`
 echo -e
 echo "-- Creating cloudformation stack"
 parameters="--parameters \
- ParameterKey=Git2S3Bucket,ParameterValue=$git2s3bucket \
- ParameterKey=Branch,ParameterValue=$branches \
- ParameterKey=OutputBucketName,ParameterValue=$sourcesbucket \
- ParameterKey=AllowedIps,ParameterValue=$allowedips \
- ParameterKey=ApiSecret,ParameterValue=$apisecret \
+ ParameterKey=Git2S3Bucket,ParameterValue=${git2s3bucket} \
+ ParameterKey=Branch,ParameterValue=${branches} \
+ ParameterKey=OutputBucketName,ParameterValue=${sourcesbucket} \
+ ParameterKey=AllowedIps,ParameterValue=${allowedips} \
+ ParameterKey=ApiSecret,ParameterValue=${apisecret} \
 "
+if [ ! -z "$memory" ]; then
+    echo "not empty" 
+    parameters="${parameters} ParameterKey=MaxMemory,ParameterValue=${memory}"
+fi
 create_stack $stackname "file://cf/git2s3.yml" "$parameters" true true
 
 ############### clean
