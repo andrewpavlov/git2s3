@@ -6,9 +6,8 @@ function runcmd {
     local aws_options="--region ${region} --profile ${profile}"
     local cmd=$1" ${aws_options}"
     
-    if [ $demo ]; then
-        echo $cmd
-    else
+    echo $cmd
+    if [[ !$demo ]]; then
         $cmd
     fi
 }
@@ -72,50 +71,57 @@ set -e
 
 ## Check arguments
 
-while [[ $# -gt 1 ]]
+while [[ $# -gt 0 ]]
 do
 key="$1"
-
 case $key in
     -sb|--sources-bucket)
     sourcesbucket="$2"
     shift # past argument
+    shift # past value
     ;;
     -b|--branches)
     branches="$2"
     shift # past argument
+    shift # past value
     ;;
     -n|--stack-name)
     stackname="$2"
     shift # past argument
+    shift # past value
     ;;
     -ip|--allowed-ips)
     allowedips="$2"
     shift # past argument
+    shift # past value
     ;;
     -s|--secret)
     apisecret="$2"
     shift # past argument
+    shift # past value
     ;;
     -p|--profile)
     profile="$2"
     shift # past argument
+    shift # past value
     ;;
     -r|--region)
     region="$2"
     shift # past argument
+    shift # past value
     ;;
     --clean)
-    clean=yes
+    clean=true
+    shift # past argument
     ;;
     --demo)
-    demo=yes
+    demo=true
+    shift # past argument
     ;;
     *)
-            # unknown option
+    shift # unknown option - next
     ;;
 esac
-shift # past argument or value
 done
 
 ## Define
@@ -159,15 +165,13 @@ if [ $clean ]; then
     sourcesbucket=`import_value $stackname "OutputBucketName"`
     echo -e
     echo "-- Remove bucket with git sources"
-    cmd="aws s3 rb s3://$sourcesbucket $aws_options --force"
-    $cmd
+    runcmd "aws s3 rb s3://$sourcesbucket $aws_options --force"
     echo "done"
 
     keybucket=`import_value $stackname "KeyBucketName"`
     echo -e
     echo "-- Remove key bucket"
-    cmd="aws s3 rb s3://$keybucket $aws_options --force"
-    $cmd
+    runcmd "aws s3 rb s3://$keybucket --force"
     echo "done"
 
     echo -e
