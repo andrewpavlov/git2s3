@@ -250,7 +250,7 @@ parameters="--parameters \
  ParameterKey=AllowedIps,ParameterValue=$allowedips \
  ParameterKey=ApiSecret,ParameterValue=$apisecret \
 "
-create_stack $stackname "file://cf/git2s3-cloudformation.yml" "$parameters" true true
+create_stack $stackname "file://cf/git2s3.yml" "$parameters" true true
 
 ############### clean
 echo -e

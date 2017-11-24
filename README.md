@@ -25,11 +25,11 @@ Arguments:
 
 Example:
 
-    ./deploy.sh -n git2s3 -sb activsignal.sources -ip 0.0.0.0/0 -s qwerty123 -p retec -r us-east-1
+    ./deploy.sh -n git2s3 -ip 0.0.0.0/0 -s qwerty123 -p noblecoz -r us-east-1
     
 Clean
 
-    ./deploy.sh --clean -n git2s3 -p retec -r us-east-1
+    ./deploy.sh --clean -n git2s3 -p noblecoz -r us-east-1
 
 ## License
 
