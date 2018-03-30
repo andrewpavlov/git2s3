@@ -40,6 +40,7 @@ function create_stack {
     if [ $shouldwait ]; then
         runcmd "aws cloudformation wait stack-create-complete --stack-name ${stackname}"
     fi
+    echo "done"
 }
 
 function delete_stack {
@@ -50,7 +51,8 @@ function delete_stack {
     runcmd "${cmd}"
     if [ $shouldwait ]; then
         runcmd "aws cloudformation wait stack-delete-complete --stack-name ${stackname}"
-    fi    
+    fi
+    echo "done"
 }
 
 function import_value {
@@ -133,9 +135,9 @@ done
 
 # generating random suffix
 # random=$(cat /dev/urandom | tr -dc "a-z0-9" | fold -w 8 | head -n 1)
-random=$(cat /dev/urandom | env LC_CTYPE=C tr -dc "a-z0-9" | fold -w 8 | head -n 1)
-# apisecretdef=$(cat /dev/urandom | tr -dc "a-zA-Z0-9" | fold -w 32 | head -n 1)
-apisecretdef=$(cat /dev/urandom | env LC_CTYPE=C tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
+random=$(LC_ALL=C; cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 32 | head -n 1)
+# apisecretdef=$(LC_ALL=C; cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 32 | head -n 1)
+apisecretdef=$(LC_ALL=C; cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 32 | head -n 1)
 
 if [ -z "$stackname" ]; then
     read -p "Cloud Formation stack name [git2s3-$random-cf]: " stackname
