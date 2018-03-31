@@ -66,6 +66,18 @@ function import_value {
         ${aws_options}`
     echo $ret
 }
+
+function resource_value {
+    local stackname=$1
+    local value=$2
+    local aws_options="--region ${region} --profile ${profile}"
+    local ret=`aws cloudformation describe-stack-resources \
+        --stack-name ${stackname} \
+        --query "StackResources[?LogicalResourceId =='${value}'].PhysicalResourceId" \
+        --output text \
+        ${aws_options}`
+    echo $ret
+}
 ## functions
 ######################################
 
@@ -159,7 +171,7 @@ fi;
 if [ $clean ]; then
     set +e #ignore all errors
 
-    keybucket=`import_value $stackname "KeyBucketName"`
+    keybucket=`resource_value $stackname "KeyBucket"`
     if [ ! -z "$keybucket" ]; then
         echo -e
         echo "-- Remove key bucket"
@@ -168,7 +180,7 @@ if [ $clean ]; then
     fi
 
     # delete git2s3 output bucket
-    sourcesbucket=`import_value $stackname "OutputBucketName"`
+    sourcesbucket=`resource_value $stackname "OutputBucket"`
     if [ ! -z "$sourcebucket" ]; then
         echo -e
         echo "-- Remove bucket with git sources"
@@ -177,7 +189,7 @@ if [ $clean ]; then
     fi
 
     # delete build output bucket
-    git2s3bucket=`import_value $build_stackname "OutputBucketName"`
+    git2s3bucket=`resource_value $build_stackname "OutputBucket"`
     if [ ! -z "$git2s3bucket" ]; then
         echo -e
         echo "-- Remove git2s3 build output bucket"
