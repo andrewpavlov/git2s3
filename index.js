@@ -4,7 +4,9 @@ const utils = require('js.shared').utils;
 const aws = require('./lib/aws');
 
 exports.handler = (event, context, callback) => {
+    console.log('start...');
     let stackName = utils.get(event, 'stageVariables.StackName');
+    console.log('Stack Name', stackName);
     aws.getOuputs(stackName, (err, params) => {
         let body = JSON.parse(event.body);
         let opts = lambdaGetOpts(body, params);
