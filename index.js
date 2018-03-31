@@ -4,15 +4,26 @@ const utils = require('js.shared').utils;
 const aws = require('./lib/aws');
 
 exports.handler = (event, context, callback) => {
-    console.log('start...', event);
-
+    let skip = false;
     let body = JSON.parse(event.body);
     let opts = lambdaGetOpts(body, event);
     console.log('Options', opts);
 
+    // check ip
+    let allowedIPs = utils.get(event, 'allowedIPs');
+    if (!skip && !utils.empty(allowedIPs)) {
+        // TODO: skip if ip filter
+    }
+
+    // check secret
+    let apiSecret = utils.get(event, 'apiSecret');
+    if (!skip && !utils.empty(apiSecret)) {
+        // TODO: check if right secret word
+    }
+
+    // check branch
     let branches = utils.get(event, 'branches');
-    let skip = false;
-    if (!utils.empty(branches)) {
+    if (!skip && !utils.empty(branches)) {
         branches = branches.split(/[ \,\;]/);
         let branch = opts.repo.branch;
         skip = branches.indexOf(branch) === -1;
