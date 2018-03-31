@@ -82,18 +82,8 @@ case $key in
     shift # past argument
     shift # past value
     ;;
-    -b|--branches)
-    branches="$2"
-    shift # past argument
-    shift # past value
-    ;;
     -n|--stack-name)
     stackname="$2"
-    shift # past argument
-    shift # past value
-    ;;
-    -ip|--allowed-ips)
-    allowedips="$2"
     shift # past argument
     shift # past value
     ;;
@@ -169,17 +159,6 @@ fi;
 if [ $clean ]; then
     set +e #ignore all errors
 
-    sourcesbucket=`import_value $stackname "OutputBucketName"`
-    if [ -z "$sourcebucket" ]; then
-        sourcesbucket=`import_value $build_stackname "OutputBucketName"`
-    fi
-    if [ ! -z "$sourcebucket" ]; then
-        echo -e
-        echo "-- Remove bucket with git sources"
-        runcmd "aws s3 rb s3://$sourcesbucket $aws_options --force"
-        echo "done"
-    fi
-
     keybucket=`import_value $stackname "KeyBucketName"`
     if [ ! -z "$keybucket" ]; then
         echo -e
@@ -188,6 +167,25 @@ if [ $clean ]; then
         echo "done"
     fi
 
+    # delete git2s3 output bucket
+    sourcesbucket=`import_value $stackname "OutputBucketName"`
+    if [ ! -z "$sourcebucket" ]; then
+        echo -e
+        echo "-- Remove bucket with git sources"
+        runcmd "aws s3 rb s3://$sourcesbucket $aws_options --force"
+        echo "done"
+    fi
+
+    # delete build output bucket
+    git2s3bucket=`import_value $build_stackname "OutputBucketName"`
+    if [ ! -z "$git2s3bucket" ]; then
+        echo -e
+        echo "-- Remove git2s3 build output bucket"
+        runcmd "aws s3 rm s3://$git2s3bucket --recursive"
+        echo "done"
+    fi
+
+    # delete git2s3 stacks
     stack_exists=`stack_status $stackname`
     if [ ! -z "$stack_exists" ]; then
         echo -e
@@ -195,6 +193,7 @@ if [ $clean ]; then
         delete_stack $stackname true
     fi
 
+    # delete build stacks
     build_stack_exists=`stack_status $build_stackname`
     if [ ! -z "$build_stack_exists" ]; then
         echo -e
@@ -215,14 +214,6 @@ fi;
 if [ -z "$sourcesbucket" ]; then
     read -p "Bucket for sources [auto generated]: " sourcesbucket
     sourcesbucket=${sourcesbucket:-}
-fi
-if [ -z "$branches" ]; then
-    read -p "Branches [*]: " branches
-    branches=${branches:-}
-fi
-if [ -z "$allowedips" ]; then
-    read -p "Allowed IPs [0.0.0.0/0]: " allowedips
-    allowedips=${allowedips:-0.0.0.0/0}
 fi
 if [ -z "$apisecret" ]; then
     read -p "Secret [$apisecretdef]: " apisecret
@@ -269,9 +260,7 @@ echo -e
 echo "-- Creating cloudformation stack"
 parameters="--parameters \
  ParameterKey=Git2S3Bucket,ParameterValue=${git2s3bucket} \
- ParameterKey=Branch,ParameterValue=${branches} \
  ParameterKey=OutputBucketName,ParameterValue=${sourcesbucket} \
- ParameterKey=AllowedIps,ParameterValue=${allowedips} \
  ParameterKey=ApiSecret,ParameterValue=${apisecret} \
 "
 if [ ! -z "$memory" ]; then

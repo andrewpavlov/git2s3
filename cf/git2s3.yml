@@ -9,17 +9,9 @@ Mappings:
     eu-west-1:
       Name: git-to-codepipeline-prod-eu-west-1
 Conditions:
-  UseAllowedIps: !Not
-    - !Equals
-      - !Ref AllowedIps
-      - ''
   UseApiSecret: !Not
     - !Equals
       - !Ref ApiSecret
-      - ''
-  UseBranch: !Not
-    - !Equals
-      - !Ref Branch
       - ''
   UseOutputFiles: !Not
     - !Equals
@@ -33,12 +25,6 @@ Parameters:
   Git2S3Bucket:
     Description: Specify bucket name where lambda code (git2s3.zip) is located
     Type: String
-  Branch:
-    Description: >-
-      OPTIONAL: Specify which branch(es) you want to follow.
-      All branches if left blank
-    Type: String
-    Default: ''
   OutputBucketName:
     Description: >-
       OPTIONAL: Bucket Name where the zip file output should be placed, if left
@@ -49,12 +35,6 @@ Parameters:
     Description: Output artifacts (all files by default)
     Type: String
     Default: ''
-  AllowedIps:
-    Description: >-
-      gitpull method only. Comma seperated list of IP CIDR blocks for source IP
-      authentication. The BitBucket Cloud IP ranges are provided as defaults.
-    Type: String
-    Default: '131.103.20.160/27,165.254.145.0/26,104.192.143.0/24'
   ApiSecret:
     Description: >-
       WebHook Secrets for use with GitHub Enterprise and GitLab.
@@ -388,7 +368,13 @@ Resources:
       RestApiId: !Ref WebHookApi
       StageName: Prod
       Variables:
-        StackName: !Ref 'AWS::StackName'
+        OutputBucketName: !Ref OutputBucket
+        KeyBucketName: !Ref KeyBucket
+        ApiSecret: !Ref ApiSecret
+        OutputFiles: !Ref OutputFiles
+        PublicSSHKey: !Ref CreateSSHKey
+        AllowedIPs: ''
+        Branches: ''
 Outputs:
   PublicSSHKey:
     Value: !Ref CreateSSHKey
@@ -404,17 +390,3 @@ Outputs:
         - /gitpull
     Export:
       Name: !Sub ${AWS::StackName}-webhook
-  OutputBucketName:
-    Value: !Ref OutputBucket
-    Export:
-      Name: !Sub ${AWS::StackName}-output-bucket
-  KeyBucketName:
-    Value: !Ref KeyBucket
-  AllowedIps:
-    Value: !Ref AllowedIps
-  ApiSecret:
-    Value: !Ref ApiSecret
-  Branch:
-    Value: !Ref Branch
-  OutputFiles:
-    Value: !Ref OutputFiles

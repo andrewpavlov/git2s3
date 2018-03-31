@@ -4,36 +4,33 @@ const utils = require('js.shared').utils;
 const aws = require('./lib/aws');
 
 exports.handler = (event, context, callback) => {
-    console.log('start...');
-    let stackName = utils.get(event, 'stageVariables.StackName');
-    console.log('Stack Name', stackName);
-    aws.getOuputs(stackName, (err, params) => {
-        let body = JSON.parse(event.body);
-        let opts = lambdaGetOpts(body, params);
-        console.log('Options', opts);
+    console.log('start...', event);
 
-        let branches = utils.get(params, 'Branch', '');
-        let skip = false;
-        if (!utils.empty(branches)) {
-            branches = branches.split(/[ \,\;]/);
-            let branch = opts.repo.branch;
-            skip = branches.indexOf(branch) === -1;
-        }
+    let body = JSON.parse(event.body);
+    let opts = lambdaGetOpts(body, event['stageVariables']);
+    console.log('Options', opts);
 
-        if (skip) {
+    let branches = utils.get(event, 'stageVariables.Branches');
+    let skip = false;
+    if (!utils.empty(branches)) {
+        branches = branches.split(/[ \,\;]/);
+        let branch = opts.repo.branch;
+        skip = branches.indexOf(branch) === -1;
+    }
+
+    if (skip) {
+        callback(null, {
+            statusCode: 200,
+            body: ''
+        });
+    } else {
+        require('./lib/index')(opts, () => {
             callback(null, {
                 statusCode: 200,
                 body: ''
             });
-        } else {
-            require('./lib/index')(opts, () => {
-                callback(null, {
-                    statusCode: 200,
-                    body: ''
-                });
-            });
-        }
-    });
+        });
+    }
 };
 
 function lambdaGetOpts(data, params) {

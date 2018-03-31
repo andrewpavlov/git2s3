@@ -15,9 +15,7 @@ Command line
 Arguments:
 
     -sb, --sources-bucket   Bucket with sources
-    -b, --branches          Branches you want to follow
     -n, --stack-name        Cloud Formation Stack name
-    -ip, --allowed-ips      Allowed IPs
     -s, --secret            Secret phrase
     -p, --profile           AWS profile
     -r, --region            AWS region
@@ -26,11 +24,17 @@ Arguments:
 
 Example:
 
-    ./deploy.sh -n git2s3 -ip 0.0.0.0/0 -s qwerty123 -p noblecoz -r us-east-1
+    ./deploy.sh -n git2s3 -s qwerty123 -p default -r us-east-1
     
 Clean
 
-    ./deploy.sh --clean -n git2s3 -p noblecoz -r us-east-1
+    ./deploy.sh --clean -n git2s3 -p default -r us-east-1
+
+
+Stage variables:
+- 'Branches' - Branches you would like to follow  (comma separated list, e.g. develop,master)
+- 'AllowedIPs' - Allowed IPs. Comma seperated list of IP CIDR blocks for source IP authentication.
+    (e.g. The BitBucket Cloud IP ranges: '131.103.20.160/27,165.254.145.0/26,104.192.143.0/24')
 
 ## License
 
