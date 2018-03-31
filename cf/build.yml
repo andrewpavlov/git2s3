@@ -20,7 +20,7 @@ Resources:
       Path: '/'
       Policies:
         -
-          PolicyName: git2s3-codebuild-policy
+          PolicyName: !Sub ${AWS::StackName}-policy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -46,7 +46,7 @@ Resources:
   Git2S3Build:
     Type: AWS::CodeBuild::Project
     Properties:
-      Name: git2s3-codebuild
+      Name: !Sub ${AWS::StackName}
       ServiceRole: !GetAtt CodeBuildRole.Arn
       Artifacts:
         Type: S3

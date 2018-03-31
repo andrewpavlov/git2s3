@@ -7,10 +7,10 @@ exports.handler = (event, context, callback) => {
     console.log('start...', event);
 
     let body = JSON.parse(event.body);
-    let opts = lambdaGetOpts(body, event['stageVariables']);
+    let opts = lambdaGetOpts(body, event);
     console.log('Options', opts);
 
-    let branches = utils.get(event, 'stageVariables.Branches');
+    let branches = utils.get(event, 'branches');
     let skip = false;
     if (!utils.empty(branches)) {
         branches = branches.split(/[ \,\;]/);
@@ -75,14 +75,14 @@ function lambdaGetOpts(data, params) {
             region: process.env.AWS_REGION ? process.env.AWS_REGION : 'us-east-1'
         },
         KMS: {
-            Bucket: params['KeyBucketName'],
+            Bucket: params['keyBucket'],
             Key: 'enc_key',
-            PublicKey: params['PublicSSHKey']
+            PublicKey: params['publicSSHKey']
         },
         output: {
             name: repoFullName,
-            Bucket: params['OutputBucketName'],
-            files: utils.get(params, 'OutputFiles')
+            Bucket: params['outputBucket'],
+            files: utils.get(params, 'outputFiles')
         }
     };
 }

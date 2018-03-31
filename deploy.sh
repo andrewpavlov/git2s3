@@ -138,7 +138,6 @@ done
 # generating random suffix
 # random=$(cat /dev/urandom | tr -dc "a-z0-9" | fold -w 8 | head -n 1)
 random=$(LC_ALL=C; cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 32 | head -n 1)
-# apisecretdef=$(LC_ALL=C; cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 32 | head -n 1)
 apisecretdef=$(LC_ALL=C; cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 32 | head -n 1)
 
 if [ -z "$stackname" ]; then
@@ -304,4 +303,3 @@ echo -e
 import_value $stackname "Git2S3WebHookApi"
 echo -e
 import_value $stackname "PublicSSHKey"
-

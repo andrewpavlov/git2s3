@@ -265,14 +265,22 @@ Resources:
       Code:
         ZipFile: !Join
           - ""
-          - - "var AWS = require('aws-sdk');"
+          - - "const AWS = require('aws-sdk');"
             - "exports.handler = (event, context, callback) => {"
-            - "    var lambda = new AWS.Lambda();"
-            - "    var args = JSON.stringify({"
-            - "        body: event.body,"
-            - "        stageVariables: event.stageVariables"
+            - "    let lambda = new AWS.Lambda();"
+            - "    let stageVariables = event.stageVariables;"
+            - "    let args = JSON.stringify({"
+            - !Sub |
+                      body: event.body,
+                      allowedIPs: stageVariables.allowedIPs,
+                      branches: stageVariables.Branches,
+                      outputBucket: '${OutputBucket}',
+                      keyBucket: '${KeyBucket}',
+                      apiSecret: '${ApiSecret}',
+                      outputFiles: '${OutputFiles}',
+                      publicSSHKey: '${CreateSSHKey}'
             - "    });"
-            - "    var params = {"
+            - "    let params = {"
             - "        FunctionName: '"
             - !GetAtt
               - Git2S3Lambda
@@ -280,7 +288,7 @@ Resources:
             - "',"
             - "        InvokeArgs: args"
             - "    };"
-            - "    lambda.invokeAsync(params, function(err, data) {"
+            - "    lambda.invokeAsync(params, (err, data) => {"
             - "        if (err) {"
             - "            console.log(err, err.stack);"
             - "        }"
@@ -368,13 +376,8 @@ Resources:
       RestApiId: !Ref WebHookApi
       StageName: Prod
       Variables:
-        OutputBucketName: !Ref OutputBucket
-        KeyBucketName: !Ref KeyBucket
-        ApiSecret: !Ref ApiSecret
-        OutputFiles: !Ref OutputFiles
-        PublicSSHKey: !Ref CreateSSHKey
-        AllowedIPs: ''
-        Branches: ''
+        AllowedIPs: '0.0.0.0/0'
+        Branches: 'develop,master'
 Outputs:
   PublicSSHKey:
     Value: !Ref CreateSSHKey
