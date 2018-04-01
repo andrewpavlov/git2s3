@@ -22,7 +22,7 @@ opts.repo.url = opts.repo.url.replace(/\\/g, '/');
 
 aws.config(opts.awsOptions);
 
-let stackName = argv['stack-name'];
+let stackName = argv['stack-name'] || 'git2s3';
 aws.getOuputs(stackName, (err, params) => {
     opts.KMS = {
         Bucket: params['KeyBucketName'],
@@ -32,7 +32,7 @@ aws.getOuputs(stackName, (err, params) => {
     opts.output = {
         name: opts.repo.name,
         Bucket: params['OutputBucketName'],
-        files: utils.get(params, 'OutputFiles')
+        files: '**/*'
     };
 
     require('./lib/index')(opts, () => {

@@ -393,6 +393,8 @@ Outputs:
         - /gitpull
     Export:
       Name: !Sub ${AWS::StackName}-webhook
+  KeyBucketName:
+    Value: !Ref KeyBucket
   OutputBucketName:
     Value: !Ref OutputBucket
     Export:
