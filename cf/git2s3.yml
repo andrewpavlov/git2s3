@@ -393,3 +393,7 @@ Outputs:
         - /gitpull
     Export:
       Name: !Sub ${AWS::StackName}-webhook
+  OutputBucketName:
+    Value: !Ref OutputBucket
+    Export:
+      Name: !Sub ${AWS::StackName}-output-bucket
