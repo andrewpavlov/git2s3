@@ -52,10 +52,12 @@ function lambdaGetOpts(data, params) {
         utils.get(data, 'project.path_with_namespace'); // gitlab
     let repoName = repoFullName.replace(/\//, '-');
 
+    // Head commit hash
+    let hash = utils.get(data, 'after') || // github, gitlab
+        utils.get(data, 'push.changes.0.new.target.hash'); // bitbucket
+
     // Url to repo
-    let remoteUrl =
-        utils.get(data, 'repository.ssh_url') // github
-        ||
+    let remoteUrl = utils.get(data, 'repository.ssh_url') || // github
         utils.get(data, 'project.git_ssh_url'); // gitlab
     if (!remoteUrl) {
         // bitbucket
@@ -76,11 +78,42 @@ function lambdaGetOpts(data, params) {
     branch = branch[branch.length - 1];
     repoFullName = repoName + '-' + branch;
 
+    // What'a new
+    let commits = [];
+    if (utils.isset(data, 'commits')) {
+        // github, gitlab
+        utils.get(data, 'commits', []).forEach(c => {
+            commits.pish({
+                hash: utils.get(c, 'id'),
+                url: utils.get(c, 'url'),
+                message: utils.get(c, 'message'),
+                timestamp: utils.get(c, 'timestamp'),
+                author: [
+                    utils.get(c, 'author.name'),
+                    '<' + utils.get(c, 'author.email', '') + '>'
+                ].join(' ')
+            });
+        });
+    } else if (utils.isset(data, 'push.changes')) {
+        // bitbucket
+        utils.get(data, 'push.changes.0.commits', []).forEach(c => {
+            commits.push({
+                hash: utils.get(c, 'hash'),
+                url: utils.get(c, 'links.html'),
+                message: utils.get(c, 'summary.raw'),
+                timestamp: utils.get(c, 'date'),
+                author: utils.get(c, 'author.raw')
+            });
+        });
+    }
+
     return {
         repo: {
+            hash: hash,
             url: remoteUrl,
             name: repoName,
-            branch: branch
+            branch: branch,
+            commits: commits
         },
         awsOptions: {
             region: process.env.AWS_REGION ? process.env.AWS_REGION : 'us-east-1'
