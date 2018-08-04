@@ -62,6 +62,19 @@ Resources:
       Source:
         Type: GITHUB
         Location: https://github.com/andrewpavlov/git2s3.git
+        BuildSpec: !Sub |
+          version: 0.2
+          phases:
+            pre_build:
+              commands:
+                - npm install
+            build:
+              commands:
+                - node install.js
+          artifacts:
+            files:
+              - git2s3.zip
+            discard-paths: no
       TimeoutInMinutes: 5
 Outputs:
   OutputBucketName:
