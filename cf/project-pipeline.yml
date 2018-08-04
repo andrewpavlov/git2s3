@@ -1,0 +1,314 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Git2S3
+
+Parameters:
+  OAuthToken:
+    Description: GitHun OAuth token
+    Type: String
+  OutputBucket:
+    Description: Destination bucket for git3s3 lambda
+    Type: String
+
+Resources:
+  BuildBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+  BuildCacheBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          -
+            Effect: Allow
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: '/'
+      Policies:
+        -
+          PolicyName: !Sub ${AWS::StackName}-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              -
+                Effect: Allow
+                Action:
+                  - logs:DescribeLogGroups
+                  - logs:CreateLogGroup
+                  - logs:DeleteLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:PutRetentionPolicy
+                  - s3:*
+                  - iam:GetRole
+                  - iam:PassRole
+                Resource: '*'
+
+  Git2S3Build:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub ${AWS::StackName}
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/nodejs:6.3.1
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: !Sub |
+          version: 0.2
+          phases:
+            install:
+              commands:
+                - aws s3 cp s3://${BuildCacheBucket}/git2s3 . --recursive && tar -zxf node_modules.tar.gz || echo "lib cache is empty"
+            pre_build:
+              commands:
+                - npm install
+            post_build:
+              commands:
+                - tar -zcf node_modules.tar.gz ./node_modules && aws s3 cp node_modules.tar.gz s3://${BuildCacheBucket}/git2s3/
+          artifacts:
+            files:
+              - lib/**/*
+              - node_modules/**/*
+              - index.js
+            discard-paths: no
+      TimeoutInMinutes: 5
+
+  DeployLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          -
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: '/'
+      Policies:
+        -
+          PolicyName: !Sub ${AWS::StackName}-deploylambdarole-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              -
+                Effect: Allow
+                Action:
+                  - 'logs:DescribeLogGroups'
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                  - 's3:*'
+                  - 'lambda:*'
+                  - 'codepipeline:PutJobSuccessResult'
+                  - 'codepipeline:PutJobFailureResult'
+                Resource: '*'
+
+  DeployLambda:
+    Type: AWS::Lambda::Function
+    Description: Copies objects from a source S3 bucket to a destination
+    Properties:
+      Handler: index.handler 
+      Runtime: python2.7
+      Timeout: 60
+      Role:
+        Fn::GetAtt:
+        - DeployLambdaRole
+        - Arn
+      Code:
+        ZipFile: !Sub |
+          import json
+          import logging
+          import boto3
+          import botocore
+          import traceback
+
+          code_pipeline = boto3.client('codepipeline')
+          s3 = boto3.client('s3')
+
+          def get_user_params(job_data):
+            try:
+              # Get the user parameters which contain the stack, artifact and file settings
+              user_parameters = job_data['actionConfiguration']['configuration']['UserParameters']
+              decoded_parameters = json.loads(user_parameters)
+            except Exception as e:
+              # We're expecting the user parameters to be encoded as JSON
+              raise Exception('UserParameters could not be decoded as JSON')
+            return decoded_parameters
+
+          def find_artifact(artifacts, name):
+            for artifact in artifacts:
+              if artifact['name'] == name:
+                return artifact
+            raise Exception('Input artifact named "{0}" not found in event'.format(name))
+
+          def put_job_success(job, message):
+            print('Putting job success')
+            print(message)
+            code_pipeline.put_job_success_result(jobId=job)
+
+          def put_job_failure(job, message):
+            print('Putting job failure')
+            print(message)
+            code_pipeline.put_job_failure_result(jobId=job, failureDetails={
+              'message': message, 'type': 'JobFailed'
+            })
+
+          def handler(event, context):
+            try:
+              # Extract the Job ID
+              job_id = event['CodePipeline.job']['id']
+
+              # Extract the Job Data
+              job_data = event['CodePipeline.job']['data']
+
+              # Extract the params
+              params = get_user_params(job_data)
+
+              # Get the list of artifacts passed to the function
+              artifacts = job_data['inputArtifacts']
+
+              # Get the artifact details
+              artifact = find_artifact(artifacts, params['source']['artifact'])
+              # Get artifact with
+              from_bucket = artifact['location']['s3Location']['bucketName']
+              from_key = artifact['location']['s3Location']['objectKey']
+
+              # Destination bucket
+              to_bucket = params['destination']['bucket'];
+              to_key = params['destination']['key'];
+
+              # Copy
+              copy_source = {
+                'Bucket': from_bucket,
+                'Key': from_key
+              }
+              s3.copy_object(CopySource=copy_source, Bucket=to_bucket, Key=to_key)
+              
+              # Send OK
+              put_job_success(job_id, 'Stack update complete')
+            except Exception as e:
+              print('Function failed due to exception.')
+              print(e)
+              traceback.print_exc()
+              put_job_failure(job_id, 'Function exception: ' + str(e))
+
+            print('Function complete.')
+            return 'Complete.'
+
+  CodePipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          -
+            Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: '/'
+      Policies:
+        -
+          PolicyName: !Sub ${AWS::StackName}-codepipelinerole-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              -
+                Effect: Allow
+                Action:
+                  - logs:DescribeLogGroups
+                  - logs:CreateLogGroup
+                  - logs:DeleteLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:PutRetentionPolicy
+                  - logs:PutSubscriptionFilter
+                  - logs:DeleteSubscriptionFilter
+                  - s3:*
+                  - lambda:*
+                  - codebuild:BatchGetBuilds
+                  - codebuild:StartBuild
+                  - iam:GetRole
+                  - iam:PassRole
+                Resource: '*'
+
+  Git2S3Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: !Sub ${AWS::StackName}
+      RoleArn: !GetAtt CodePipelineRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: !Ref BuildBucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: git2s3
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Version: 1
+                Provider: GitHub
+              OutputArtifacts:
+                - Name: Source
+              Configuration:
+                Owner: andrewpavlov
+                Repo: git2s3
+                PollForSourceChanges: false
+                Branch: master
+                OAuthToken: !Ref OAuthToken
+              RunOrder: 1
+        - Name: Build
+          Actions:
+            - Name: git2s3
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: 1
+                Provider: CodeBuild
+              InputArtifacts:
+                - Name: Source
+              OutputArtifacts:
+                - Name: Output
+              Configuration:
+                ProjectName: !Ref Git2S3Build
+              RunOrder: 1
+        - Name: Deploy
+          Actions:
+            - Name: git2s3
+              ActionTypeId:
+                Category: Invoke
+                Owner: AWS
+                Version: 1
+                Provider: Lambda
+              InputArtifacts:
+                - Name: Output
+              Configuration:
+                FunctionName: !Ref DeployLambda
+                UserParameters: !Sub |
+                  {
+                    "source": {
+                      "artifact": "Output"
+                    },
+                    "destination": {
+                      "bucket": "${OutputBucket}",
+                      "key": "lambda/git2s3.zip"
+                    }
+                  }
+              RunOrder: 1
