@@ -18,17 +18,16 @@ Arguments:
     -n, --stack-name        Cloud Formation Stack name
     -s, --secret            Secret phrase
     -p, --profile           AWS profile
-    -r, --region            AWS region
     -m, --max-memory        Memory limit for lambda (128 by default). Important if sources are huge
     --clean                 Clear deployment (clear AWS resources)
 
 Example:
 
-    ./deploy.sh -n git2s3 -s qwerty123 -p default -r us-east-1
+    ./deploy.sh -n git2s3 -s qwerty123 -p default
     
 Clean
 
-    ./deploy.sh --clean -n git2s3 -p default -r us-east-1
+    ./deploy.sh --clean -n git2s3 -p default
 
 
 Stage variables:

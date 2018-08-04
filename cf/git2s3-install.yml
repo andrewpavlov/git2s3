@@ -1,5 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Git 2 S3
+Description: Git2S3
+
 Conditions:
   UseApiSecret: !Not
     - !Equals
@@ -13,9 +14,31 @@ Conditions:
     - !Equals
       - !Ref OutputBucketName
       - ''
+
 Parameters:
-  Git2S3Bucket:
-    Description: Specify bucket name where lambda code (git2s3.zip) is located
+  Git2S3BucketName:
+    AllowedPattern: '^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$'
+    Default: andrewpavlov-public-resources
+    Type: String
+  Git2S3KeyPrefix:
+    AllowedPattern: '^[0-9a-zA-Z-/]*$'
+    Default: lambda/
+    Type: String
+  QSS3BucketName:
+    AllowedPattern: '^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$'
+    Default: aws-quickstart
+    Description: >-
+      S3 bucket name for the Quick Start assets. Quick Start bucket name can
+      include numbers, lowercase letters, uppercase letters, and hyphens (-). It
+      cannot start or end with a hyphen (-).
+    Type: String
+  QSS3KeyPrefix:
+    AllowedPattern: '^[0-9a-zA-Z-/]*$'
+    Default: quickstart-git2s3/
+    Description: >-
+      S3 key prefix for the Quick Start assets. Quick Start key prefix can
+      include numbers, lowercase letters, uppercase letters, hyphens (-), and
+      forward slash (/).
     Type: String
   OutputBucketName:
     Description: >-
@@ -39,7 +62,128 @@ Parameters:
     Description: Your function is allocated CPU proportional to the memory configured.
     Type: String
     Default: 128
+
 Resources:
+  LambdaZipsBucket:
+    Type: 'AWS::S3::Bucket'
+  CopyQSZips:
+    Type: 'AWS::CloudFormation::CustomResource'
+    Properties:
+      ServiceToken: !GetAtt 
+        - CopyZipsFunction
+        - Arn
+      DestBucket: !Ref LambdaZipsBucket
+      SourceBucket: !Ref QSS3BucketName
+      Prefix: !Ref QSS3KeyPrefix
+      Objects:
+        - functions/packages/CreateSSHKey/lambda.zip
+        - functions/packages/DeleteBucketContents/lambda.zip
+  CopyGit2S3Zips:
+    Type: 'AWS::CloudFormation::CustomResource'
+    Properties:
+      ServiceToken: !GetAtt 
+        - CopyZipsFunction
+        - Arn
+      DestBucket: !Ref LambdaZipsBucket
+      SourceBucket: !Ref Git2S3BucketName
+      Prefix: !Ref Git2S3KeyPrefix
+      Objects:
+        - git2s3.zip
+  CopyZipsRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: lambda-copier
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                Resource:
+                  - !Sub 'arn:aws:s3:::${QSS3BucketName}/${QSS3KeyPrefix}*'
+                  - !Sub 'arn:aws:s3:::${Git2S3BucketName}/${Git2S3KeyPrefix}*'
+              - Effect: Allow
+                Action:
+                  - 's3:PutObject'
+                  - 's3:DeleteObject'
+                Resource:
+                  - !Sub 'arn:aws:s3:::${LambdaZipsBucket}/${QSS3KeyPrefix}*'
+                  - !Sub 'arn:aws:s3:::${LambdaZipsBucket}/${Git2S3KeyPrefix}*'
+  CopyZipsFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Description: Copies objects from a source S3 bucket to a destination
+      Handler: index.handler
+      Runtime: python2.7
+      Role: !GetAtt 
+        - CopyZipsRole
+        - Arn
+      Timeout: 240
+      Code:
+        ZipFile: !Join 
+          - |+
+
+          - - import json
+            - import logging
+            - import threading
+            - import boto3
+            - import cfnresponse
+            - ''
+            - ''
+            - 'def copy_objects(source_bucket, dest_bucket, prefix, objects):'
+            - '    s3 = boto3.client(''s3'')'
+            - '    for o in objects:'
+            - '        key = prefix + o'
+            - '        copy_source = {'
+            - '            ''Bucket'': source_bucket,'
+            - '            ''Key'': key'
+            - '        }'
+            - '        s3.copy_object(CopySource=copy_source, Bucket=dest_bucket, Key=key)'
+            - ''
+            - ''
+            - 'def delete_objects(bucket, prefix, objects):'
+            - '    s3 = boto3.client(''s3'')'
+            - '    objects = {''Objects'': [{''Key'': prefix + o} for o in objects]}'
+            - '    s3.delete_objects(Bucket=bucket, Delete=objects)'
+            - ''
+            - ''
+            - 'def timeout(event, context):'
+            - '    logging.error(''Execution is about to time out, sending failure response to CloudFormation'')'
+            - '    cfnresponse.send(event, context, cfnresponse.FAILED, {}, None)'
+            - ''
+            - ''
+            - 'def handler(event, context):'
+            - '    # make sure we send a failure to CloudFormation if the function is going to timeout'
+            - '    timer = threading.Timer((context.get_remaining_time_in_millis() / 1000.00) - 0.5, timeout, args=[event, context])'
+            - '    timer.start()'
+            - ''
+            - '    print(''Received event: %s'' % json.dumps(event))'
+            - '    status = cfnresponse.SUCCESS'
+            - '    try:'
+            - '        source_bucket = event[''ResourceProperties''][''SourceBucket'']'
+            - '        dest_bucket = event[''ResourceProperties''][''DestBucket'']'
+            - '        prefix = event[''ResourceProperties''][''Prefix'']'
+            - '        objects = event[''ResourceProperties''][''Objects'']'
+            - '        if event[''RequestType''] == ''Delete'':'
+            - '            delete_objects(dest_bucket, prefix, objects)'
+            - '        else:'
+            - '            copy_objects(source_bucket, dest_bucket, prefix, objects)'
+            - '    except Exception as e:'
+            - '        logging.error(''Exception: %s'' % e, exc_info=True)'
+            - '        status = cfnresponse.FAILED'
+            - '    finally:'
+            - '        timer.cancel()'
+            - '        cfnresponse.send(event, context, status, {}, None)'
+            - ''
   KeyBucket:
     Type: 'AWS::S3::Bucket'
     DeletionPolicy: Delete
@@ -55,7 +199,9 @@ Resources:
   KMSKey:
     Type: 'AWS::KMS::Key'
     Properties:
-      Description: 'Bucket to store ssh keys'
+      Description: >-
+        git CodePipeline integration, used to encrypt/decrypt ssh keys stored in
+        S3
       KeyPolicy:
         Version: 2012-10-17
         Statement:
@@ -63,7 +209,7 @@ Resources:
             Effect: Allow
             Principal:
               AWS:
-                - !Join
+                - !Join 
                   - ''
                   - - 'arn:aws:iam::'
                     - !Ref 'AWS::AccountId'
@@ -86,7 +232,7 @@ Resources:
             Effect: Allow
             Principal:
               AWS:
-                - !Join
+                - !Join 
                   - ''
                   - - 'arn:aws:iam::'
                     - !Ref 'AWS::AccountId'
@@ -102,7 +248,7 @@ Resources:
             Effect: Allow
             Principal:
               AWS:
-                - !Join
+                - !Join 
                   - ''
                   - - 'arn:aws:iam::'
                     - !Ref 'AWS::AccountId'
@@ -127,9 +273,7 @@ Resources:
             Action: 'sts:AssumeRole'
       Path: /
       Policies:
-        - PolicyName: !Sub
-            - ${StackName}-sshkeygen
-            - StackName: !Ref 'AWS::StackName'
+        - PolicyName: git2cp-sshkeygen
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -137,7 +281,7 @@ Resources:
                 Action:
                   - 's3:GetObject'
                 Resource:
-                  - !Join
+                  - !Join 
                     - ''
                     - - 'arn:aws:s3:::'
                       - !Ref KeyBucket
@@ -146,7 +290,7 @@ Resources:
                 Action:
                   - 's3:PutObject'
                 Resource:
-                  - !Join
+                  - !Join 
                     - ''
                     - - 'arn:aws:s3:::'
                       - !Ref KeyBucket
@@ -155,7 +299,9 @@ Resources:
                 Action:
                   - 'kms:Encrypt'
                 Resource:
-                  - '*'
+                  - !GetAtt 
+                    - KMSKey
+                    - Arn
               - Effect: Allow
                 Action:
                   - 'logs:CreateLogGroup'
@@ -164,28 +310,100 @@ Resources:
                 Resource:
                   - 'arn:aws:logs:*:*:*'
   CreateSSHKeyLambda:
+    DependsOn: CopyQSZips
     Type: 'AWS::Lambda::Function'
     Properties:
       Handler: lambda_function.lambda_handler
       MemorySize: '128'
-      Role: !GetAtt
+      Role: !GetAtt 
         - CreateSSHKeyRole
         - Arn
       Runtime: python2.7
       Timeout: '300'
       Code:
-        S3Bucket: andrewpavlov-public-resources
-        S3Key: lambda/CreateSSHKey.zip
+        S3Bucket: !Ref LambdaZipsBucket
+        S3Key: !Sub '${QSS3KeyPrefix}functions/packages/CreateSSHKey/lambda.zip'
   CreateSSHKey:
     Type: 'AWS::CloudFormation::CustomResource'
     Version: '1.0'
     Properties:
-      ServiceToken: !GetAtt
+      ServiceToken: !GetAtt 
         - CreateSSHKeyLambda
         - Arn
       KeyBucket: !Ref KeyBucket
       Region: !Ref 'AWS::Region'
       KMSKey: !Ref KMSKey
+  DeleteBucketContentsRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: git2cp-deletebucketcontents
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:*'
+                Resource:
+                  - !Join 
+                    - ''
+                    - - 'arn:aws:s3:::'
+                      - !Ref KeyBucket
+                      - /*
+                  - !Join 
+                    - ''
+                    - - 'arn:aws:s3:::'
+                      - !Ref OutputBucket
+                      - /*
+                  - !Join 
+                    - ''
+                    - - 'arn:aws:s3:::'
+                      - !Ref KeyBucket
+                  - !Join 
+                    - ''
+                    - - 'arn:aws:s3:::'
+                      - !Ref OutputBucket
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource:
+                  - 'arn:aws:logs:*:*:*'
+  DeleteBucketContentsLambda:
+    DependsOn: CopyQSZips
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Handler: lambda_function.lambda_handler
+      MemorySize: '128'
+      Role: !GetAtt 
+        - DeleteBucketContentsRole
+        - Arn
+      Runtime: python2.7
+      Timeout: '300'
+      Code:
+        S3Bucket: !Ref LambdaZipsBucket
+        S3Key: !Sub '${QSS3KeyPrefix}functions/packages/DeleteBucketContents/lambda.zip'
+  DeleteBucketContents:
+    Type: 'AWS::CloudFormation::CustomResource'
+    Version: '1.0'
+    DependsOn:
+      - KeyBucket
+      - OutputBucket
+    Properties:
+      ServiceToken: !GetAtt 
+        - DeleteBucketContentsLambda
+        - Arn
+      KeyBucket: !Ref KeyBucket
+      OutputBucket: !Ref OutputBucket
   Git2S3Role:
     Type: AWS::IAM::Role
     Properties:
@@ -229,6 +447,7 @@ Resources:
         - /aws/lambda/${StackName}
         - StackName: !Ref 'AWS::StackName'
   Git2S3Lambda:
+    DependsOn: CopyGit2S3Zips
     Type: AWS::Lambda::Function
     Properties:
       Handler: index.handler
@@ -239,8 +458,8 @@ Resources:
       Runtime: nodejs6.10
       Timeout: '300'
       Code:
-        S3Bucket: !Ref Git2S3Bucket
-        S3Key: git2s3/git2s3.zip
+        S3Bucket: !Ref LambdaZipsBucket
+        S3Key: !Sub ${Git2S3KeyPrefix}git2s3.zip
   Git2S3ApiGateLambda:
     Type: AWS::Lambda::Function
     Properties:

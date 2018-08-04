@@ -114,11 +114,6 @@ case $key in
     shift # past argument
     shift # past value
     ;;
-    -r|--region)
-    region="$2"
-    shift # past argument
-    shift # past value
-    ;;
     --clean)
     clean=true
     shift # past argument
