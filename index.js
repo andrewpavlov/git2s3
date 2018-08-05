@@ -7,7 +7,6 @@ exports.handler = (event, context, callback) => {
     let skip = false;
     let body = JSON.parse(event.body);
     let opts = lambdaGetOpts(body, event);
-    console.log('Options', opts);
 
     // check ip
     let allowedIPs = utils.get(event, 'allowedIPs');
