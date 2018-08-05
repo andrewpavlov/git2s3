@@ -83,7 +83,7 @@ function lambdaGetOpts(data, params) {
     if (utils.isset(data, 'commits')) {
         // github, gitlab
         utils.get(data, 'commits', []).forEach(c => {
-            commits.pish({
+            commits.push({
                 hash: utils.get(c, 'id'),
                 url: utils.get(c, 'url'),
                 message: utils.get(c, 'message'),
