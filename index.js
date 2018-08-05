@@ -79,13 +79,13 @@ function lambdaGetOpts(data, params) {
 
     // What'a new
     let commits = [];
-    if (utils.isset(data, 'commits')) {
+    if (utils.get(data, 'commits')) {
         // github, gitlab
         utils.get(data, 'commits', []).forEach(c => {
             commits.push({
                 hash: utils.get(c, 'id'),
                 url: utils.get(c, 'url'),
-                message: utils.get(c, 'message'),
+                message: utils.trim(utils.get(c, 'message')),
                 timestamp: utils.get(c, 'timestamp'),
                 author: [
                     utils.get(c, 'author.name'),
@@ -93,13 +93,13 @@ function lambdaGetOpts(data, params) {
                 ].join(' ')
             });
         });
-    } else if (utils.isset(data, 'push.changes')) {
+    } else if (utils.get(data, 'push.changes')) {
         // bitbucket
         utils.get(data, 'push.changes.0.commits', []).forEach(c => {
             commits.push({
                 hash: utils.get(c, 'hash'),
-                url: utils.get(c, 'links.html'),
-                message: utils.get(c, 'summary.raw'),
+                url: utils.get(c, 'links.html.href'),
+                message: utils.trim(utils.get(c, 'summary.raw')),
                 timestamp: utils.get(c, 'date'),
                 author: utils.get(c, 'author.raw')
             });
