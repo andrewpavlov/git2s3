@@ -88,7 +88,7 @@ Resources:
       SourceBucket: !Ref Git2S3BucketName
       Prefix: !Ref Git2S3KeyPrefix
       Objects:
-        - git2s3.zip?versionId=null
+        - git2s3.zip
   CopyZipsRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -141,14 +141,12 @@ Resources:
             for o in objects:
               fv = o.split('?VersionId=')
               key = prefix + fv[0]
-              version = 'null'
-              if len(fv) > 1:
-                version = fv[1]
               copy_source = {
                 'Bucket': source_bucket,
-                'Key': key,
-                'VersionId': version
+                'Key': key
               }
+              if len(fv) > 1:
+                copy_source['VersionId'] = fv[1]
               s3.copy_object(CopySource=copy_source, Bucket=dest_bucket, Key=key)
           
           
