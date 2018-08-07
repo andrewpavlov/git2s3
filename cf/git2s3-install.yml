@@ -139,14 +139,14 @@ Resources:
           def copy_objects(source_bucket, dest_bucket, prefix, objects):
               s3 = boto3.client('s3')
               for o in objects:
-              fv = o.split('?VersionId=')
-              key = prefix + fv[0]
+                  fv = o.split('?VersionId=')
+                  key = prefix + fv[0]
                   copy_source = {
                       'Bucket': source_bucket,
                       'Key': key
                   }
-              if len(fv) > 1:
-                copy_source['VersionId'] = fv[1]
+                  if len(fv) > 1:
+                      copy_source['VersionId'] = fv[1]
                   s3.copy_object(CopySource=copy_source, Bucket=dest_bucket, Key=key)
           
           
