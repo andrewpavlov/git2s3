@@ -5,7 +5,7 @@ This package extends existing AWS solution
 ## Using
 
 ```
-aws cloudformation create-stack --stack-name STACK_NAME --template-body file://cf/git2s3-install.yml --capabilities CAPABILITY_NAMED_IAM --profile AWS_PROFILE --region AWS_REGION
+aws cloudformation create-stack --stack-name $GIT2S3_STACK_NAME --template-body file://cf/git2s3-install.yml --capabilities CAPABILITY_NAMED_IAM --profile $AWS_PROFILE --region $AWS_REGION
 ```
 
 Check all available parameters inside ./cf/git2s3-install.yml cloudformation file
@@ -19,7 +19,7 @@ Stage variables:
 ## Collaborators
 
 ```
-aws cloudformation update-stack --stack-name PIPELINE_NAME --template-body file://cf/project-pipeline.yml --parameters ParameterKey=OAuthToken,ParameterValue=GITHUB_OATH_TOKEN ParameterKey=OutputBucket,ParameterValue=DEST_BUCKET --capabilities CAPABILITY_NAMED_IAM --profile AWS_PROFILE --region AWS_REGION
+aws cloudformation update-stack --stack-name $GIT2S3_PIPELINE_NAME --template-body file://cf/project-pipeline.yml --parameters ParameterKey=OAuthToken,ParameterValue=$GITHUB_OATH_TOKEN ParameterKey=OutputBucket,ParameterValue=$GIT2S3_DEST_BUCKET --capabilities CAPABILITY_NAMED_IAM --profile $AWS_PROFILE --region $AWS_REGION
 ```
 
 Check all available parameters inside ./cf/project-pipeline.yml stack
