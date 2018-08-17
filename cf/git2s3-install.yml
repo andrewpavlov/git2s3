@@ -420,7 +420,7 @@ Resources:
       Path: '/'
       Policies:
         -
-          PolicyName: substance-codebuild
+          PolicyName: !Sub ${AWS::StackName}-git2s3-policy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
