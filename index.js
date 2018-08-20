@@ -1,12 +1,15 @@
 'use strict';
 
 const utils = require('js.shared').utils;
-const aws = require('./lib/aws');
 
 exports.handler = (event, context, callback) => {
     let skip = false;
     let body = JSON.parse(event.body);
     let opts = lambdaGetOpts(body, event);
+
+    if (!opts) {
+        skip = true;
+    }
 
     // check ip
     let allowedIPs = utils.get(event, 'allowedIPs');
@@ -46,8 +49,7 @@ exports.handler = (event, context, callback) => {
 function lambdaGetOpts(data, params) {
     // Repo name
     let repoFullName =
-        utils.get(data, 'repository.full_name') // bitbucket, github
-        ||
+        utils.get(data, 'repository.full_name') || // bitbucket, github
         utils.get(data, 'project.path_with_namespace'); // gitlab
     let repoName = repoFullName.replace(/\//, '-');
 
@@ -68,10 +70,13 @@ function lambdaGetOpts(data, params) {
     }
 
     // Getting updated branch
-    let ref =
-        utils.get(data, 'ref') // github, gitlab
-        ||
+    let ref = utils.get(data, 'ref') || // github, gitlab
         utils.get(data, 'push.changes.0.new.links.html.href'); // bitbucket
+    
+    if (!ref) {
+        // not push request
+        return null;
+    }
 
     let branch = ref.split('/');
     branch = branch[branch.length - 1];
