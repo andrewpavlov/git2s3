@@ -61,7 +61,7 @@ Parameters:
   MaxMemory:
     Description: Your function is allocated CPU proportional to the memory configured.
     Type: String
-    Default: 128
+    Default: 1024
 
 Resources:
   LambdaZipsBucket:
