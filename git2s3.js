@@ -1,7 +1,6 @@
 'use strict';
 
 const argv = require('yargs').argv;
-const utils = require('js.shared').utils;
 const aws = require('./lib/aws');
 
 let opts = {

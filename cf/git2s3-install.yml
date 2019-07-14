@@ -468,16 +468,16 @@ Resources:
       Role: !GetAtt
         - Git2S3Role
         - Arn
-      Runtime: nodejs10.x
+      Runtime: nodejs8.10
       Timeout: '300'
       Code:
         ZipFile: !Join
           - ""
           - - "const AWS = require('aws-sdk');"
             - "exports.handler = (event, context, callback) => {"
-            - "    let lambda = new AWS.Lambda();"
-            - "    let stageVariables = event.stageVariables;"
-            - "    let args = JSON.stringify({"
+            - "  let lambda = new AWS.Lambda();"
+            - "  let stageVariables = event.stageVariables;"
+            - "  let args = JSON.stringify({"
             - !Sub |
                       body: event.body,
                       allowedIPs: stageVariables.allowedIPs,
@@ -487,24 +487,24 @@ Resources:
                       apiSecret: '${ApiSecret}',
                       outputFiles: '${OutputFiles}',
                       publicSSHKey: '${CreateSSHKey}'
-            - "    });"
-            - "    let params = {"
-            - "        FunctionName: '"
+            - "  });"
+            - "  let params = {"
+            - "    FunctionName: '"
             - !GetAtt
               - Git2S3Lambda
               - Arn
             - "',"
-            - "        InvokeArgs: args"
-            - "    };"
-            - "    lambda.invokeAsync(params, (err, data) => {"
-            - "        if (err) {"
-            - "            console.log(err, err.stack);"
-            - "        }"
-            - "    });"
-            - "    callback(null, {"
-            - "        statusCode: 200,"
-            - "        body: ''"
-            - "    });"
+            - "    InvokeArgs: args"
+            - "  };"
+            - "  lambda.invokeAsync(params, (err, data) => {"
+            - "    if (err) {"
+            - "      console.log(err, err.stack);"
+            - "    }"
+            - "  });"
+            - "  callback(null, {"
+            - "    statusCode: 200,"
+            - "    body: ''"
+            - "  });"
             - "};"
   WebHookRole:
     Type: 'AWS::IAM::Role'

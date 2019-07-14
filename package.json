@@ -5,7 +5,7 @@
   "author": "Andrey Pavlov <andrew.m.pavlov@gmail.com>",
   "dependencies": {
     "archiver": "1.3.0",
-    "aws-sdk": "2.477.0",
+    "aws-sdk": "2.493.0",
     "js.shared": "https://github.com/andrewpavlov/js.shared.git#6d1670a18f06f1aa6c07e2fa80f1411259759cc3",
     "nodegit": "0.24.3",
     "yargs": "7.0.1"
