@@ -455,7 +455,7 @@ Resources:
       Role: !GetAtt
         - Git2S3Role
         - Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: '300'
       Code:
         S3Bucket: !Ref LambdaZipsBucket
@@ -468,7 +468,7 @@ Resources:
       Role: !GetAtt
         - Git2S3Role
         - Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: '300'
       Code:
         ZipFile: !Join
